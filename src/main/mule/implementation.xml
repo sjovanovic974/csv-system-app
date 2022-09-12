@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:validation="http://www.mulesoft.org/schema/mule/validation" xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:google-sheets="http://www.mulesoft.org/schema/mule/google-sheets" xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/google-sheets http://www.mulesoft.org/schema/mule/google-sheets/current/mule-google-sheets.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/validation http://www.mulesoft.org/schema/mule/validation/current/mule-validation.xsd">
+	<flow name="get-all-products" doc:id="14b8d8a1-4bb2-4e21-92c7-7f63a899859d" >
+		<file:read doc:name="read-csv-music" doc:id="3cb86bb0-ca09-496b-a3e9-9253217888eb" config-ref="File_Config" path="data/catalogue.csv" outputMimeType="application/csv"/>
+		<ee:transform doc:name="csv-to-json" doc:id="5a6b33ce-0a70-4416-a0e4-b21f8af72108" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	title: payload01.title,
+	artist: payload01.artist,
+	price: payload01.price,
+	quantity: payload01.quantity,
+	category: payload01.category
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="get-products-by-artist" doc:id="03f78c1e-2d32-47c2-a64d-47f4a2eeb3fd" >
+		<set-variable value="#[attributes.uriParams.artist]" doc:name="artist" doc:id="d1993d5e-0b8b-47c1-b68d-a6af7c7b83e8" variableName="artist"/>
+		<file:read doc:name="read-csv-music" doc:id="efa5ce7c-1225-4ded-9fc3-52cdd5d2da61" config-ref="File_Config" path="data/catalogue.csv" outputMimeType="application/csv" />
+		<ee:transform doc:name="csv-to-json" doc:id="ff82ad6c-283e-4e31-b48d-62fbf9f5ac72" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload filter ($.artist == vars.artist) 
+map ( payload01 , indexOfPayload01 ) -> {
+	title: payload01.title,
+	artist: payload01.artist,
+	price: payload01.price,
+	quantity: payload01.quantity,
+	category: payload01.category
+} ]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<validation:is-not-empty-collection doc:name="is-not-empty-collection" doc:id="03a04df2-1980-40b0-a1a5-218b42033f2d" config-ref="Validation_Config" message="Artist not found" />
+		<error-handler >
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="39e3cda2-9704-4562-b2d5-4670703da451" type="VALIDATION:EMPTY_COLLECTION">
+				<ee:transform doc:name="artist-not-found-msg" doc:id="427d5cd3-6f89-49e3-8877-28305854fd5b" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  "message": "Artist not found!"
+}]]></ee:set-payload>
+					</ee:message>
+					<ee:variables >
+						<ee:set-variable variableName="httpStatus" ><![CDATA[404]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+</mule>
